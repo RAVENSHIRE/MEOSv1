@@ -1,20 +1,33 @@
 import { useBotEngine } from "./useBotEngine";
+import { usePhantomWallet } from "./usePhantomWallet";
 import { Header } from "./components/Header";
 import { ControlPanel } from "./components/ControlPanel";
 import { Terminal } from "./components/Terminal";
 import { StatsBar } from "./components/StatsBar";
 import { SignalFeed } from "./components/SignalFeed";
-import { CONFIG } from "./config";
+import { LiveTokenList } from "./components/LiveTokenList";
 
 export default function App() {
-  const { logs, strategies, stats, isRunning, liveSignals, toggleStrategy, toggleBot, clearLogs } =
-    useBotEngine();
+  const { wallet, available, connect, disconnect } = usePhantomWallet();
+
+  const { logs, strategies, stats, isRunning, liveSignals, liveTokens, toggleStrategy, toggleBot, clearLogs } =
+    useBotEngine(wallet.publicKey, wallet.connected);
+
+  const walletAddress = wallet.publicKey?.toBase58() ?? null;
 
   return (
     <div className="min-h-screen bg-terminal-bg text-terminal-green grid-bg relative">
       <div className="scanline-overlay" />
       <div className="relative z-10 flex flex-col h-screen">
-        <Header stats={stats} isRunning={isRunning} />
+        <Header
+          stats={stats}
+          isRunning={isRunning}
+          walletConnected={wallet.connected}
+          walletAddress={walletAddress}
+          walletAvailable={available}
+          onConnectWallet={connect}
+          onDisconnectWallet={disconnect}
+        />
 
         <main className="flex-1 overflow-hidden p-4 space-y-4">
           <StatsBar stats={stats} />
@@ -28,6 +41,7 @@ export default function App() {
                 onToggleBot={toggleBot}
               />
               <SignalFeed signals={liveSignals} />
+              <LiveTokenList tokens={liveTokens} />
             </div>
 
             <div className="lg:col-span-2 h-full min-h-[300px]">
@@ -39,7 +53,7 @@ export default function App() {
         <footer className="border-t border-terminal-border bg-terminal-panel/50 px-6 py-1.5 flex items-center justify-between text-xs text-terminal-gray-light">
           <span>MEOSv1 — Autonomous Solana Trading System</span>
           <span className="hidden sm:inline">
-            {CONFIG.isDryRun ? "Simulation Mode" : "Live Mode"} | Not financial advice
+            {wallet.connected ? "Phantom Wallet Connected" : "No Wallet Connected"} | Not financial advice
           </span>
         </footer>
       </div>

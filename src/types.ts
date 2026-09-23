@@ -32,6 +32,7 @@ export interface BotStats {
   rpcLatency: number;
   currentSlot: number;
   tps: number;
+  tokenCount: number;
 }
 
 export interface MarketToken {
@@ -55,4 +56,11 @@ export interface TradeSignal {
   expectedFee: number;
   confidence: number;
   reason: string;
+}
+
+export interface WalletInfo {
+  connected: boolean;
+  address: string | null;
+  solBalance: number;
+  tokenCount: number;
 }

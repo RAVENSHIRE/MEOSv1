@@ -1,33 +1,23 @@
-import { Connection, Keypair, clusterApiUrl } from "@solana/web3.js";
+import { Connection, PublicKey, clusterApiUrl } from "@solana/web3.js";
 
 const RPC_URL = import.meta.env.VITE_RPC_URL || clusterApiUrl("devnet");
-const PRIVATE_KEY = import.meta.env.VITE_PRIVATE_KEY || "";
 
-export const IS_DRY_RUN = !PRIVATE_KEY;
-
-let keypair: Keypair;
 let connection: Connection;
 
 try {
-  if (PRIVATE_KEY) {
-    const secret = Uint8Array.from(JSON.parse(PRIVATE_KEY));
-    keypair = Keypair.fromSecretKey(secret);
-  } else {
-    keypair = Keypair.generate();
-  }
   connection = new Connection(RPC_URL, "confirmed");
 } catch {
-  keypair = Keypair.generate();
   connection = new Connection(clusterApiUrl("devnet"), "confirmed");
 }
 
-export { keypair, connection, RPC_URL };
+export { connection, RPC_URL };
+
+export const TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 
 export const CONFIG = {
   rpcUrl: RPC_URL,
-  walletAddress: keypair.publicKey.toBase58(),
-  isDryRun: IS_DRY_RUN,
-  scanIntervalMs: 4000,
+  isDryRun: true,
+  scanIntervalMs: 5000,
   strategies: {
     rent: {
       label: "Suck up the Rent",
@@ -46,7 +36,6 @@ export const CONFIG = {
   },
 };
 
-export function getShortAddress(): string {
-  const addr = CONFIG.walletAddress;
+export function shortAddress(addr: string): string {
   return `${addr.slice(0, 4)}...${addr.slice(-4)}`;
 }

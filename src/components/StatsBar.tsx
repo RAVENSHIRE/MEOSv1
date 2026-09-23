@@ -15,7 +15,7 @@ function StatCard({ label, value, color, glow }: { label: string; value: string;
 
 export function StatsBar({ stats }: StatsBarProps) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
       <StatCard label="Total Scans" value={stats.totalScans.toLocaleString()} color="text-terminal-blue" glow="glow-blue" />
       <StatCard label="Total Trades" value={stats.totalTrades.toLocaleString()} color="text-terminal-green" glow="glow-green" />
       <StatCard
@@ -25,6 +25,7 @@ export function StatsBar({ stats }: StatsBarProps) {
         glow={stats.totalPnl >= 0 ? "glow-green" : "glow-red"}
       />
       <StatCard label="Wallet Balance" value={`${stats.solBalance.toFixed(4)} SOL`} color="text-terminal-yellow" glow="glow-yellow" />
+      <StatCard label="Token Accounts" value={stats.tokenCount.toLocaleString()} color="text-terminal-blue" />
     </div>
   );
 }
