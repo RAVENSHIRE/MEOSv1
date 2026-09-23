@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #1a2332 #0a0e14;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0e14;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1a2332;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2a3a4c;
+}
+
+body {
+  margin: 0;
+  background: #0a0e14;
+  font-family: "JetBrains Mono", monospace;
+  color: #c5d0e0;
+  overflow-x: hidden;
+}
+
+.scanline-overlay {
+  pointer-events: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0) 0px,
+    rgba(0, 0, 0, 0) 2px,
+    rgba(0, 255, 159, 0.015) 3px,
+    rgba(0, 255, 159, 0.015) 4px
+  );
+}
+
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(0, 255, 159, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 159, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.glow-green {
+  text-shadow: 0 0 8px rgba(0, 255, 159, 0.4);
+}
+
+.glow-red {
+  text-shadow: 0 0 8px rgba(255, 59, 59, 0.4);
+}
+
+.glow-yellow {
+  text-shadow: 0 0 8px rgba(255, 184, 0, 0.4);
+}
+
+.glow-blue {
+  text-shadow: 0 0 8px rgba(0, 180, 255, 0.4);
+}
+
+.terminal-text {
+  text-shadow: 0 0 2px rgba(0, 255, 159, 0.2);
+}
