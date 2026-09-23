@@ -15,6 +15,6 @@ export default defineConfig({
     strictPort: true,
   },
   optimizeDeps: {
-    exclude: ["@solana/web3.js"],
+    include: ["@solana/web3.js", "eventemitter3"],
   },
 });
