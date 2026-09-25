@@ -1,3 +1,5 @@
+import type { Network } from "./config";
+
 export type LogLevel = "INFO" | "SUCCESS" | "WARN" | "ERROR" | "TRADE" | "SCAN" | "SYSTEM";
 
 export interface LogEntry {
@@ -33,6 +35,7 @@ export interface BotStats {
   currentSlot: number;
   tps: number;
   tokenCount: number;
+  network: Network;
 }
 
 export interface MarketToken {
@@ -56,11 +59,4 @@ export interface TradeSignal {
   expectedFee: number;
   confidence: number;
   reason: string;
-}
-
-export interface WalletInfo {
-  connected: boolean;
-  address: string | null;
-  solBalance: number;
-  tokenCount: number;
 }

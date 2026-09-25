@@ -1,4 +1,3 @@
-import { Connection, Keypair } from "@solana/web3.js";
 import http from "http";
 import fs from "fs";
 import path from "path";
@@ -6,40 +5,122 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const RPC_URL = process.env.VITE_RPC_URL || "https://api.devnet.solana.com";
-const PRIVATE_KEY = process.env.VITE_PRIVATE_KEY || "";
+const MAINNET_ENDPOINTS = [
+  "https://api.mainnet-beta.solana.com",
+  "https://rpc.ankr.com/solana",
+];
 
-let keypair: Keypair;
-if (PRIVATE_KEY) {
-  try {
-    const secret = Uint8Array.from(JSON.parse(PRIVATE_KEY));
-    keypair = Keypair.fromSecretKey(secret);
-  } catch {
-    keypair = Keypair.generate();
-    console.log("[WARN] Invalid private key format — using generated dummy keypair");
+const DEVNET_ENDPOINTS = [
+  "https://api.devnet.solana.com",
+  "https://rpc.ankr.com/solana_devnet",
+];
+
+const PORT = process.env.PORT || 4173;
+const distDir = path.join(__dirname, "dist");
+
+const contentTypes: Record<string, string> = {
+  ".html": "text/html",
+  ".js": "text/javascript",
+  ".css": "text/css",
+  ".json": "application/json",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+};
+
+async function handleRpc(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  network: "mainnet" | "devnet"
+): Promise<boolean> {
+  const endpoints = network === "mainnet" ? MAINNET_ENDPOINTS : DEVNET_ENDPOINTS;
+
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(chunk);
   }
-} else {
-  keypair = Keypair.generate();
-  console.log("[INFO] No private key provided — using generated dummy keypair (dry-run)");
+  const body = Buffer.concat(chunks).toString("utf-8");
+
+  let lastError = "";
+  for (const endpoint of endpoints) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+
+      const resp = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeout);
+
+      if (!resp.ok) {
+        lastError = `HTTP ${resp.status} from ${endpoint}`;
+        continue;
+      }
+
+      const data = await resp.text();
+      try {
+        const parsed = JSON.parse(data);
+        if (parsed.error) {
+          lastError = `RPC ${parsed.error.code}: ${parsed.error.message} from ${endpoint}`;
+          continue;
+        }
+      } catch {
+        lastError = `Invalid JSON from ${endpoint}`;
+        continue;
+      }
+
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      });
+      res.end(data);
+      return true;
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+      continue;
+    }
+  }
+
+  console.error(`[RPC PROXY] All ${network} endpoints failed: ${lastError}`);
+  res.writeHead(502, {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+  });
+  res.end(JSON.stringify({
+    jsonrpc: "2.0",
+    error: { code: -32603, message: `All ${network} RPC endpoints failed: ${lastError}` },
+    id: null,
+  }));
+  return true;
 }
 
-const connection = new Connection(RPC_URL, "confirmed");
-const PORT = process.env.PORT || 4173;
-
-const distDir = path.join(__dirname, "dist");
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   const reqUrl = req.url || "/";
+
+  // CORS preflight
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, solana-client",
+    });
+    res.end();
+    return;
+  }
+
+  // RPC proxy
+  const rpcMatch = reqUrl.match(/^\/rpc\/(mainnet|devnet)/);
+  if (rpcMatch && req.method === "POST") {
+    await handleRpc(req, res, rpcMatch[1] as "mainnet" | "devnet");
+    return;
+  }
+
+  // Static files
   let filePath = path.join(distDir, reqUrl === "/" ? "/index.html" : reqUrl);
   const ext = path.extname(filePath);
-
-  const contentTypes: Record<string, string> = {
-    ".html": "text/html",
-    ".js": "text/javascript",
-    ".css": "text/css",
-    ".json": "application/json",
-    ".png": "image/png",
-    ".svg": "image/svg+xml",
-  };
 
   fs.readFile(filePath, (err, data) => {
     if (err) {
@@ -60,41 +141,12 @@ const server = http.createServer((req, res) => {
   });
 });
 
-async function startBot() {
-  console.log("========================================");
-  console.log("  MEOSv1 — Autonomous Solana Trading Bot");
-  console.log("========================================");
-  console.log(`RPC: ${RPC_URL}`);
-  console.log(`Wallet: ${keypair.publicKey.toBase58()}`);
-  console.log(`Mode: ${PRIVATE_KEY ? "LIVE" : "DRY-RUN (dummy keypair)"}`);
-
-  try {
-    const balance = await connection.getBalance(keypair.publicKey);
-    console.log(`Balance: ${balance / 1e9} SOL`);
-  } catch {
-    console.log("RPC connection failed — running in offline mode");
-  }
-
-  console.log("\nStrategies:");
-  console.log("  [1] Suck up the Rent (Fee Farming)");
-  console.log("  [2] Reversal Sniper (Floor Detection)");
-  console.log("\nBot scanning loop active. Press Ctrl+C to stop.\n");
-
-  let scanCount = 0;
-  setInterval(() => {
-    scanCount++;
-    const tokens = 8 + Math.floor(Math.random() * 8);
-    const signals = Math.floor(Math.random() * 3);
-    console.log(
-      `[${new Date().toISOString()}] SCAN #${scanCount} — ${tokens} tokens scanned, ${signals} signals detected`
-    );
-    if (signals > 0) {
-      console.log(`  -> ${signals} potential trade(s) logged (dry-run)`);
-    }
-  }, 4000);
-}
-
 server.listen(PORT, () => {
-  console.log(`Dashboard running on http://localhost:${PORT}`);
-  startBot().catch(console.error);
+  console.log(`========================================`);
+  console.log(`  MEOSv1 — Autonomous Solana Trading Bot`);
+  console.log(`========================================`);
+  console.log(`Dashboard: http://localhost:${PORT}`);
+  console.log(`RPC Proxy: /rpc/mainnet, /rpc/devnet`);
+  console.log(`Mode: DRY-RUN`);
+  console.log(`========================================`);
 });

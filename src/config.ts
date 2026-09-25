@@ -1,21 +1,22 @@
-import { Connection, PublicKey, clusterApiUrl } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 
-const RPC_URL = import.meta.env.VITE_RPC_URL || clusterApiUrl("devnet");
+export type Network = "mainnet" | "devnet";
 
-let connection: Connection;
-
-try {
-  connection = new Connection(RPC_URL, "confirmed");
-} catch {
-  connection = new Connection(clusterApiUrl("devnet"), "confirmed");
-}
-
-export { connection, RPC_URL };
+// Both the Vite dev server and the production server.ts proxy /rpc/<network>
+// to the real Solana RPC, stripping browser headers that trigger 403 blocks.
+export const RPC_ENDPOINTS: Record<Network, string> = {
+  mainnet: "/rpc/mainnet",
+  devnet: "/rpc/devnet",
+};
 
 export const TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 
+export function createConnection(network: Network): Connection {
+  const url = RPC_ENDPOINTS[network];
+  return new Connection(url, "confirmed");
+}
+
 export const CONFIG = {
-  rpcUrl: RPC_URL,
   isDryRun: true,
   scanIntervalMs: 5000,
   strategies: {

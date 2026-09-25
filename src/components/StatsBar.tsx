@@ -15,7 +15,8 @@ function StatCard({ label, value, color, glow }: { label: string; value: string;
 
 export function StatsBar({ stats }: StatsBarProps) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+      <StatCard label="Network" value={stats.network.toUpperCase()} color={stats.network === "mainnet" ? "text-terminal-green" : "text-terminal-yellow"} glow={stats.network === "mainnet" ? "glow-green" : "glow-yellow"} />
       <StatCard label="Total Scans" value={stats.totalScans.toLocaleString()} color="text-terminal-blue" glow="glow-blue" />
       <StatCard label="Total Trades" value={stats.totalTrades.toLocaleString()} color="text-terminal-green" glow="glow-green" />
       <StatCard

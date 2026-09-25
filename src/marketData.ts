@@ -1,5 +1,5 @@
-import { connection, TOKEN_PROGRAM_ID } from "./config";
-import { PublicKey } from "@solana/web3.js";
+import { TOKEN_PROGRAM_ID } from "./config";
+import { Connection, PublicKey } from "@solana/web3.js";
 import type { MarketToken } from "./types";
 
 const KNOWN_TOKENS = [
@@ -29,10 +29,10 @@ export interface WalletTokenInfo {
   uiAmount: number;
 }
 
-export async function fetchWalletTokens(walletAddress: string): Promise<WalletTokenInfo[]> {
+export async function fetchWalletTokens(conn: Connection, walletAddress: string): Promise<WalletTokenInfo[]> {
   try {
     const pubKey = new PublicKey(walletAddress);
-    const tokenAccounts = await connection.getParsedTokenAccountsByOwner(pubKey, {
+    const tokenAccounts = await conn.getParsedTokenAccountsByOwner(pubKey, {
       programId: TOKEN_PROGRAM_ID,
     });
 
@@ -54,11 +54,11 @@ export async function fetchWalletTokens(walletAddress: string): Promise<WalletTo
   }
 }
 
-export async function fetchLiveMarketData(): Promise<MarketToken[]> {
+export async function fetchLiveMarketData(conn: Connection): Promise<MarketToken[]> {
   const tokens: MarketToken[] = [];
 
   try {
-    await connection.getSlot();
+    await conn.getSlot();
   } catch {
     return generateFallbackTokens();
   }
@@ -67,7 +67,7 @@ export async function fetchLiveMarketData(): Promise<MarketToken[]> {
     try {
       let supply = 0;
       try {
-        const resp = await connection.getTokenSupply(new PublicKey(known.mint));
+        const resp = await conn.getTokenSupply(new PublicKey(known.mint));
         supply = resp.value.uiAmount || 0;
       } catch {
         supply = randomFloat(100000, 10000000);

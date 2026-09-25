@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState, useCallback } from "react";
-import type { LogEntry, StrategyConfig, BotStats, TradeSignal, StrategyName } from "./types";
-import { CONFIG, connection, TOKEN_PROGRAM_ID } from "./config";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import type { LogEntry, StrategyConfig, BotStats, TradeSignal } from "./types";
+import type { Network } from "./config";
+import { CONFIG, TOKEN_PROGRAM_ID, createConnection, RPC_ENDPOINTS } from "./config";
 import { fetchLiveMarketData } from "./marketData";
 import { formatLogTime } from "./botEngine";
+import { getBalance, getTokenAccounts, getSlot } from "./rpcClient";
 import type { PublicKey } from "@solana/web3.js";
 
 const MAX_LOGS = 500;
@@ -12,7 +14,9 @@ function randomBetween(min: number, max: number): number {
   return Math.random() * (max - min) + min;
 }
 
-export function useBotEngine(walletPublicKey: PublicKey | null, walletConnected: boolean) {
+export function useBotEngine(walletPublicKey: PublicKey | null, walletConnected: boolean, network: Network) {
+  const connection = useMemo(() => createConnection(network), [network]);
+
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [strategies, setStrategies] = useState<StrategyConfig[]>([
     {
@@ -47,6 +51,7 @@ export function useBotEngine(walletPublicKey: PublicKey | null, walletConnected:
     currentSlot: 0,
     tps: 0,
     tokenCount: 0,
+    network,
   });
   const [isRunning, setIsRunning] = useState(false);
   const [liveSignals, setLiveSignals] = useState<TradeSignal[]>([]);
@@ -68,17 +73,17 @@ export function useBotEngine(walletPublicKey: PublicKey | null, walletConnected:
     setLogs((prev) => [...prev.slice(-(MAX_LOGS - 1)), entry]);
   }, []);
 
-  // Init: check RPC connection
+  // Init / re-init when network changes: check RPC connection
   useEffect(() => {
     let cancelled = false;
 
     async function init() {
-      addLog("SYSTEM", "MEOSv1 boot sequence initiated...");
-      addLog("SYSTEM", `RPC endpoint: ${CONFIG.rpcUrl}`);
+      addLog("SYSTEM", `Connecting to Solana ${network.toUpperCase()}...`);
+      addLog("SYSTEM", `RPC endpoint: ${RPC_ENDPOINTS[network]}`);
 
       try {
         const t0 = performance.now();
-        const slot = await connection.getSlot();
+        const slot = await getSlot(network);
         const latency = Math.round(performance.now() - t0);
         if (cancelled) return;
 
@@ -87,59 +92,63 @@ export function useBotEngine(walletPublicKey: PublicKey | null, walletConnected:
           rpcConnected: true,
           rpcLatency: latency,
           currentSlot: slot,
+          network,
         }));
-        addLog("SUCCESS", `RPC connected — slot ${slot}, latency ${latency}ms`);
-      } catch {
+        addLog("SUCCESS", `RPC connected to ${network.toUpperCase()} — slot ${slot}, latency ${latency}ms`);
+      } catch (err) {
         if (cancelled) return;
-        setStats((s) => ({ ...s, rpcConnected: false }));
-        addLog("WARN", "RPC connection failed — running in offline simulation mode");
+        setStats((s) => ({ ...s, rpcConnected: false, network }));
+        const msg = err instanceof Error ? err.message : String(err);
+        addLog("ERROR", `RPC connection to ${network.toUpperCase()} failed: ${msg.slice(0, 120)}`);
       }
 
       addLog("SYSTEM", "Strategies loaded: Suck up the Rent, Reversal Sniper");
       if (!walletConnected) {
-        addLog("WARN", "No Phantom wallet connected — connect wallet to view live balance");
+        addLog("WARN", "No Phantom wallet connected — click CONNECT PHANTOM to view live balance");
       }
       addLog("SYSTEM", "Awaiting operator command...");
     }
 
     init();
     return () => { cancelled = true; };
-  }, [addLog, walletConnected]);
+  }, [addLog, walletConnected, network]);
 
   // Fetch live wallet balance when connected
   useEffect(() => {
     if (!walletConnected || !walletPublicKey) return;
     let cancelled = false;
+    const address = walletPublicKey.toBase58();
 
     async function fetchBalance() {
       try {
-        const balance = await connection.getBalance(walletPublicKey!);
+        const lamports = await getBalance(network, address);
         if (cancelled) return;
-        setStats((s) => ({ ...s, solBalance: balance / 1e9 }));
-        addLog("INFO", `Live wallet balance: ${(balance / 1e9).toFixed(4)} SOL`);
-      } catch {
-        if (!cancelled) addLog("WARN", "Failed to fetch wallet balance from RPC");
+        const sol = lamports / 1e9;
+        setStats((s) => ({ ...s, solBalance: sol }));
+        addLog("INFO", `Live wallet balance on ${network.toUpperCase()}: ${sol.toFixed(4)} SOL`);
+      } catch (err) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : String(err);
+          addLog("WARN", `Balance fetch failed: ${msg.slice(0, 120)}`);
+        }
       }
 
       try {
-        const tokenAccounts = await connection.getParsedTokenAccountsByOwner(walletPublicKey!, {
-          programId: TOKEN_PROGRAM_ID,
-        });
+        const accounts = await getTokenAccounts(network, address, TOKEN_PROGRAM_ID.toBase58());
         if (cancelled) return;
-        const count = tokenAccounts.value.filter(
-          (a) => a.account.data.parsed?.info?.tokenAmount?.uiAmount > 0
+        const count = accounts.filter(
+          (a) => (a.account.data.parsed?.info?.tokenAmount?.uiAmount ?? 0) > 0
         ).length;
         setStats((s) => ({ ...s, tokenCount: count }));
-        addLog("INFO", `Wallet holds ${count} SPL token account(s)`);
       } catch {
-        // ignore
+        // ignore token count errors
       }
     }
 
     fetchBalance();
-    const balInterval = setInterval(fetchBalance, 15000);
+    const balInterval = setInterval(fetchBalance, 30000);
     return () => { cancelled = true; clearInterval(balInterval); };
-  }, [walletConnected, walletPublicKey, addLog]);
+  }, [walletConnected, walletPublicKey, network, addLog]);
 
   // Uptime ticker
   useEffect(() => {
@@ -173,10 +182,8 @@ export function useBotEngine(walletPublicKey: PublicKey | null, walletConnected:
 
       setStats((s) => ({ ...s, totalScans: s.totalScans + 1 }));
 
-      // Fetch live market data from Solana RPC
-      const tokens = await fetchLiveMarketData();
+      const tokens = await fetchLiveMarketData(connection);
 
-      // Update live token display
       setLiveTokens(tokens.map((t) => ({
         symbol: t.symbol,
         price: t.price,
@@ -184,7 +191,7 @@ export function useBotEngine(walletPublicKey: PublicKey | null, walletConnected:
         priceChange1h: t.priceChange1h,
       })));
 
-      addLog("SCAN", `Fetched ${tokens.length} live tokens from RPC`);
+      addLog("SCAN", `Fetched ${tokens.length} live tokens from ${network.toUpperCase()} RPC`);
 
       for (const strat of activeStrategies) {
         const signals = strat.name === "rent"
@@ -229,13 +236,12 @@ export function useBotEngine(walletPublicKey: PublicKey | null, walletConnected:
         }
       }
 
-      // Update slot from live RPC
-      connection.getSlot().then((slot) => {
+      getSlot(network).then((slot) => {
         setStats((s) => ({ ...s, currentSlot: slot }));
       }).catch(() => {});
     };
 
-    addLog("SYSTEM", "Bot scanning loop started — fetching live market data");
+    addLog("SYSTEM", `Bot scanning loop started on ${network.toUpperCase()}`);
     runScan();
     intervalRef.current = setInterval(runScan, CONFIG.scanIntervalMs);
 
@@ -245,7 +251,7 @@ export function useBotEngine(walletPublicKey: PublicKey | null, walletConnected:
         intervalRef.current = null;
       }
     };
-  }, [isRunning, addLog]);
+  }, [isRunning, addLog, connection, network]);
 
   const toggleStrategy = useCallback((name: string) => {
     setStrategies((prev) =>

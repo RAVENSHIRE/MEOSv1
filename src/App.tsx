@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useBotEngine } from "./useBotEngine";
 import { usePhantomWallet } from "./usePhantomWallet";
 import { Header } from "./components/Header";
@@ -6,12 +7,14 @@ import { Terminal } from "./components/Terminal";
 import { StatsBar } from "./components/StatsBar";
 import { SignalFeed } from "./components/SignalFeed";
 import { LiveTokenList } from "./components/LiveTokenList";
+import type { Network } from "./config";
 
 export default function App() {
   const { wallet, available, connect, disconnect } = usePhantomWallet();
+  const [network, setNetwork] = useState<Network>("mainnet");
 
   const { logs, strategies, stats, isRunning, liveSignals, liveTokens, toggleStrategy, toggleBot, clearLogs } =
-    useBotEngine(wallet.publicKey, wallet.connected);
+    useBotEngine(wallet.publicKey, wallet.connected, network);
 
   const walletAddress = wallet.publicKey?.toBase58() ?? null;
 
@@ -27,6 +30,8 @@ export default function App() {
           walletAvailable={available}
           onConnectWallet={connect}
           onDisconnectWallet={disconnect}
+          network={network}
+          onNetworkChange={setNetwork}
         />
 
         <main className="flex-1 overflow-hidden p-4 space-y-4">

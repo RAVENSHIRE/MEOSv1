@@ -1,5 +1,6 @@
 import type { BotStats } from "../types";
-import { CONFIG, shortAddress } from "../config";
+import type { Network } from "../config";
+import { shortAddress, RPC_ENDPOINTS } from "../config";
 
 interface HeaderProps {
   stats: BotStats;
@@ -9,6 +10,8 @@ interface HeaderProps {
   walletAvailable: boolean;
   onConnectWallet: () => void;
   onDisconnectWallet: () => void;
+  network: Network;
+  onNetworkChange: (n: Network) => void;
 }
 
 function formatUptime(seconds: number): string {
@@ -26,6 +29,8 @@ export function Header({
   walletAvailable,
   onConnectWallet,
   onDisconnectWallet,
+  network,
+  onNetworkChange,
 }: HeaderProps) {
   return (
     <header className="border-b border-terminal-border bg-terminal-panel/80 backdrop-blur-sm">
@@ -43,6 +48,30 @@ export function Header({
         </div>
 
         <div className="flex flex-wrap items-center gap-4 text-xs">
+          {/* Network selector */}
+          <div className="flex items-center gap-1.5 border border-terminal-border rounded px-1 py-0.5">
+            <button
+              onClick={() => onNetworkChange("mainnet")}
+              className={`px-2 py-0.5 rounded font-bold transition-all ${
+                network === "mainnet"
+                  ? "bg-terminal-green/20 text-terminal-green glow-green"
+                  : "text-terminal-gray-light hover:text-terminal-green"
+              }`}
+            >
+              MAINNET
+            </button>
+            <button
+              onClick={() => onNetworkChange("devnet")}
+              className={`px-2 py-0.5 rounded font-bold transition-all ${
+                network === "devnet"
+                  ? "bg-terminal-yellow/20 text-terminal-yellow glow-yellow"
+                  : "text-terminal-gray-light hover:text-terminal-yellow"
+              }`}
+            >
+              DEVNET
+            </button>
+          </div>
+
           {/* RPC Status */}
           <div className="flex items-center gap-2">
             <div className={`w-2 h-2 rounded-full ${stats.rpcConnected ? "bg-terminal-green animate-pulse" : "bg-terminal-red"}`} />
@@ -98,7 +127,11 @@ export function Header({
           )}
 
           {/* Mode badge */}
-          <div className="px-2 py-0.5 rounded text-xs font-bold bg-terminal-yellow/10 text-terminal-yellow border border-terminal-yellow/30">
+          <div className={`px-2 py-0.5 rounded text-xs font-bold border ${
+            walletConnected
+              ? "bg-terminal-green/10 text-terminal-green border-terminal-green/30"
+              : "bg-terminal-yellow/10 text-terminal-yellow border-terminal-yellow/30"
+          }`}>
             {walletConnected ? "WALLET LIVE" : "NO WALLET"}
           </div>
 
