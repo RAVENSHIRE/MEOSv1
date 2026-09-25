@@ -2,7 +2,9 @@ module.exports = {
   apps: [
     {
       name: "meos-v1",
-      script: "server.js",
+      script: "server.ts",
+      interpreter: "node",
+      interpreter_args: "--import tsx",
       instances: 1,
       autorestart: true,
       watch: false,
